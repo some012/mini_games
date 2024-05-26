@@ -1,10 +1,11 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from database import engine, Base
-from tables import users, games,games_history
+from starlette.responses import HTMLResponse
 
+from config import POSTGRES_DATABASE_URL
+from database import db_manager
+from tables import users, games, games_history
 
-Base.metadata.create_all(bind=engine)
+db_manager.init(POSTGRES_DATABASE_URL)
 
 app = FastAPI()
 

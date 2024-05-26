@@ -2,12 +2,12 @@ from typing import Union, List
 
 from fastapi import APIRouter, status, Response, Depends
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from starlette.responses import JSONResponse
 
 from database import get_db
-from models.models import GamesHistory, User
+from models.models import GamesHistory
 from schemas.games_history import GamesHistory as GameHistorySchema
 from utilities.default_response import DefaultResponse
 
@@ -22,29 +22,27 @@ responses = {
 
 
 @router.get("/games_history", response_model=Union[List[GameHistorySchema]], status_code=status.HTTP_200_OK)
-def read_games(db: Session = Depends(get_db)):
-    result = db.execute(select(GamesHistory))
-    all_games = result.unique().scalars().all()
+async def read_games(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(GamesHistory))
+    all_games = result.scalars().unique().all()
     return all_games
 
 
-@router.get("/games_history_by_user/{id}", response_model=Union[List[GameHistorySchema]],
-            responses=responses)
-def get_games_by_user(id: int, response: Response, db: Session = Depends(get_db)):
-    game = db.execute(select(GamesHistory).filter(id == GamesHistory.user_id))
-    this_game = game.unique().scalars().all()
-    if this_game is None:
+@router.get("/games_history_by_user/{id}", response_model=Union[List[GameHistorySchema]], responses=responses)
+async def get_games_by_user(id: int, response: Response, db: AsyncSession = Depends(get_db)):
+    game = await db.execute(select(GamesHistory).filter(GamesHistory.user_id == id))
+    this_game = game.scalars().unique().all()
+    if not this_game:
         response.status_code = status.HTTP_404_NOT_FOUND
         return DefaultResponse(success=False, message="Game not found")
     return JSONResponse(content=jsonable_encoder(this_game))
 
 
-@router.get("/games_history/{id}", response_model=Union[List[GameHistorySchema]],
-            responses=responses)
-def get_game_by_original_id(id: int, response: Response, db: Session = Depends(get_db)):
-    game = db.execute(select(GamesHistory).filter(id == GamesHistory.original_id))
-    this_game = game.unique().scalars().all()
-    if this_game is None:
+@router.get("/games_history/{id}", response_model=Union[List[GameHistorySchema]], responses=responses)
+async def get_game_by_original_id(id: int, response: Response, db: AsyncSession = Depends(get_db)):
+    game = await db.execute(select(GamesHistory).filter(GamesHistory.original_id == id))
+    this_game = game.scalars().unique().all()
+    if not this_game:
         response.status_code = status.HTTP_404_NOT_FOUND
         return DefaultResponse(success=False, message="Game not found")
     return JSONResponse(content=jsonable_encoder(this_game))
