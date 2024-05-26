@@ -1,15 +1,20 @@
 from typing import Union, List
 
-from fastapi import APIRouter, status, Response, Depends
-from sqlalchemy import select, func
-from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, status, Response
+from fastapi import Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jwt import encode
+from sqlalchemy import select, func, or_
+from sqlalchemy.orm import Session
 
+from config import ALGORITHM, SECRET_KEY
 from database import get_db
-from models.models import User, Games, GamesHistory
-from schemas.user import User as UserSchema, CreateUser, CheckUsers
-from utilities.default_response import DefaultResponse
+from models.models import User
+from schemas.user import User as UserSchema, CreateUser
+from utilities.default_response import DefaultResponse, LoginResponse
+from utilities.service import get_current_user
 
 router = APIRouter(
     prefix="/api",
@@ -19,6 +24,8 @@ router = APIRouter(
 responses = {
     status.HTTP_404_NOT_FOUND: {"model": DefaultResponse, "description": "Item not found"}
 }
+
+security = OAuth2PasswordBearer(tokenUrl="token")
 
 
 @router.get("/users", response_model=Union[List[UserSchema]],
@@ -40,64 +47,46 @@ def get_user(id: int, response: Response, db: Session = Depends(get_db)):
     return JSONResponse(content=jsonable_encoder(this_user))
 
 
-@router.post("/users", response_model=DefaultResponse, status_code=status.HTTP_200_OK)
+@router.get("/me", response_model=UserSchema)
+def read_current_user(current_user: User = Depends(get_current_user)) -> UserSchema:
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return current_user
+
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_user(user_data: CreateUser, db: Session = Depends(get_db)):
+    user_in_db = db.execute(select(User).filter(User.login == user_data.login))
+    this_user = user_in_db.scalar_one_or_none()
+    if this_user:
+        return JSONResponse(content={"message": "User with this login already exists."},
+                            status_code=status.HTTP_400_BAD_REQUEST)
+
     new_user = User(
         login=user_data.login,
         password=user_data.password,
         email=user_data.email,
         date_registration=func.now(),
-        count_games=0
-    )
+        count_games=0)
 
     db.add(new_user)
     db.commit()
 
-    return DefaultResponse(success=True, message="User created successfully")
+    return DefaultResponse(success=True, message="User created")
 
 
-@router.post('/users/{id}', status_code=status.HTTP_201_CREATED)
-def get_and_complete_game(id: int, game_id: int, response: Response, db: Session = Depends(get_db)):
-    user = db.execute(select(User).filter(User.id == id))
+@router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.execute(select(User).filter(or_(User.email == form_data.username, User.login == form_data.username)))
     this_user = user.scalar_one_or_none()
+    if not this_user or this_user.password != form_data.password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    game = db.execute(select(Games).filter(Games.id == game_id))
-    this_game = game.scalar_one_or_none()
+    token_data = {"sub": this_user.id}
+    access_token = encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
 
-    result = db.execute(select(Games))
-    all_games = result.unique().scalars().all()
-
-    if not this_game:
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return DefaultResponse(success=False, message="Game not found")
-
-    if not this_user:  # не нашли, так и не нашли
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return DefaultResponse(success=False, message="User not found")
-
-    if this_user and this_game:
-
-        if this_user.count_games >= len(all_games):
-            this_user.count_games = len(all_games)
-        else:
-            this_user.count_games += 1
-
-        this_user.active_game += [this_game]
-        this_game.status = 2
-        this_game.complete_time = func.now()
-
-        new_game = GamesHistory(  # создаем копию и отправляем в отдельную таблицу для статистики
-            original_id=this_game.id,
-            name=this_game.name,
-            status=this_game.status,
-            complete_time=this_game.complete_time,
-            user_id=this_game.user_id)
-
-        db.add(new_game)
-        db.commit()
-
-        return DefaultResponse(success=True, status_code=201, message="Game is completed!")
-    else:
-        return DefaultResponse(success=False, status_code=404, message="Error")
-
-
+    return LoginResponse(success=True, message="Login successful", access_token=access_token, token_type="bearer")

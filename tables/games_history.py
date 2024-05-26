@@ -1,13 +1,11 @@
 from typing import Union, List
 
 from fastapi import APIRouter, status, Response, Depends
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from starlette.responses import JSONResponse
 
 from database import get_db
-from models.models import GamesHistory, User
+from models.models import GamesHistory
 from schemas.games_history import GamesHistory as GameHistorySchema
 from utilities.default_response import DefaultResponse
 
@@ -36,7 +34,7 @@ def get_games_by_user(id: int, response: Response, db: Session = Depends(get_db)
     if this_game is None:
         response.status_code = status.HTTP_404_NOT_FOUND
         return DefaultResponse(success=False, message="Game not found")
-    return JSONResponse(content=jsonable_encoder(this_game))
+    return this_game
 
 
 @router.get("/games_history/{id}", response_model=Union[List[GameHistorySchema]],
@@ -47,4 +45,4 @@ def get_game_by_original_id(id: int, response: Response, db: Session = Depends(g
     if this_game is None:
         response.status_code = status.HTTP_404_NOT_FOUND
         return DefaultResponse(success=False, message="Game not found")
-    return JSONResponse(content=jsonable_encoder(this_game))
+    return this_game

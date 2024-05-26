@@ -1,13 +1,11 @@
 from typing import Union, List
 
 from fastapi import APIRouter, status, Response, Depends
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-from starlette.responses import JSONResponse
 
 from database import get_db
-from models.models import Games
+from models.models import Games, GamesHistory, User
 from schemas.games import Games as GameSchema, CreateGames, CheckGames
 from utilities.default_response import DefaultResponse
 
@@ -36,7 +34,7 @@ def get_games(id: int, response: Response, db: Session = Depends(get_db)):
     if this_game is None:
         response.status_code = status.HTTP_404_NOT_FOUND
         return DefaultResponse(success=False, message="Game not found")
-    return JSONResponse(content=jsonable_encoder(this_game))
+    return this_game
 
 
 @router.post("/games", response_model=DefaultResponse, status_code=status.HTTP_200_OK)
@@ -49,6 +47,48 @@ def create_game(games_data: CreateGames, db: Session = Depends(get_db)):
     db.add(new_game)
     db.commit()
 
-    return DefaultResponse(success=True, message="Game created successfully")
+    return new_game
 
 
+@router.post('/users/{user_id}', status_code=status.HTTP_201_CREATED)
+def get_and_complete_game(id: int, user_id: int, response: Response, db: Session = Depends(get_db)):
+    # Поиск пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return DefaultResponse(success=False, message="User not found")
+
+    # Поиск игры
+    game = db.query(Games).filter(Games.id == id).first()
+    if not game:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return DefaultResponse(success=False, message="Game not found")
+
+    if game.status == 2:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return DefaultResponse(success=False, message="Game already completed")
+
+    # Обновление количества сыгранных игр у пользователя
+    user.count_games += 1
+
+    # Добавление завершенной игры к активным играм пользователя
+    user.active_game.append(game)
+
+    # Обновление статуса и времени завершения игры
+    game.status = 2
+    game.complete_time = func.now()
+
+    # Создание записи об игре в истории игр
+    new_game_history = GamesHistory(
+        original_id=game.id,
+        name=game.name,
+        status=game.status,
+        complete_time=game.complete_time,
+        user_id=user_id
+    )
+    db.add(new_game_history)
+
+    # Сохранение изменений в базе данных
+    db.commit()
+
+    return DefaultResponse(success=True, status_code=status.HTTP_201_CREATED, message="Game is completed!")
