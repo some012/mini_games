@@ -9,7 +9,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     login = Column(String(30), index=True, nullable=False)
-    password = Column(String(50), index=True, nullable=False)
+    password = Column(String(200), index=True, nullable=False)
     email = Column(String(100), index=True, nullable=False)
     date_registration = Column(DateTime, default=func.now(), nullable=False)
     count_games = Column(Integer, index=True, nullable=False, default=0)
@@ -38,4 +38,3 @@ class GamesHistory(Base):
     status = Column(Integer, index=True, nullable=False)
     complete_time = Column(DateTime, index=True, nullable=False, default=func.now())
     user_id = Column(Integer, index=True, nullable=False, default=1)
-
