@@ -5,7 +5,6 @@ from pydantic import Field, BaseModel
 
 
 class Games(BaseModel):
-    id: Annotated[int, Field(ge=0)]
     name: Annotated[str, Field(min_length=2, max_length=30)]
     status: Annotated[int, Field(ge=0)]
     complete_time: datetime
@@ -35,10 +34,8 @@ class CreateGames(BaseModel):
         }
 
 
-class UpdateGames(CreateGames):
-    status: Annotated[int, Field(ge=0)]
-    complete_time: datetime
-    user_id: Annotated[int, Field(ge=0)]
+class UpdateGames(Games):
+    id: Annotated[int, Field(ge=0)]
 
 
 class CheckGames(BaseModel):

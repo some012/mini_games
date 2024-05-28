@@ -22,7 +22,7 @@ def create(model: Base, schema: BaseModel, db: Session):
     return db_model
 
 
-async def update(model: Base, schema: BaseModel, db: Session):
+def update(model: Base, schema: BaseModel, db: Session):
     db_model = get_by_id(model, schema.id, db)
     if db_model is None:
         return None
@@ -35,8 +35,8 @@ async def update(model: Base, schema: BaseModel, db: Session):
     return db_model
 
 
-async def delete(model: Base, id: int, db: Session):
-    db_user = await get_by_id(model, id, db)
+def delete(model: Base, id: int, db: Session):
+    db_user = get_by_id(model, id, db)
     if db_user is None:
         return
 

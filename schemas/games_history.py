@@ -5,7 +5,6 @@ from pydantic import Field, BaseModel
 
 
 class GamesHistory(BaseModel):
-    id: Annotated[int, Field(ge=0)]
     original_id: Annotated[int, Field(ge=0)]
     name: Annotated[str, Field(min_length=2, max_length=30)]
     status: Annotated[int, Field(ge=0)]

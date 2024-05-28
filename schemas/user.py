@@ -1,17 +1,15 @@
 from datetime import datetime
 from typing import Annotated, Optional, List
 
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel, EmailStr
 
 
 class User(BaseModel):
-    id: Annotated[int, Field(ge=0)]
     login: Annotated[str, Field(min_length=2, max_length=30)]
     password: Annotated[str, Field(min_length=2, max_length=200)]
-    email: Annotated[str, Field(min_length=2, max_length=100)]
+    email: Annotated[EmailStr, Field(min_length=2, max_length=100)]
     date_registration: datetime
     count_games: Annotated[int, Field(ge=0)]
-    active_game_id: int
     active_game: Optional[List[dict]]
 
     class ConfigDict:
@@ -31,7 +29,7 @@ class User(BaseModel):
 class CreateUser(BaseModel):
     login: Annotated[str, Field(min_length=2, max_length=30)]
     password: Annotated[str, Field(min_length=2, max_length=200)]
-    email: Annotated[str, Field(min_length=2, max_length=100)]
+    email: Annotated[EmailStr, Field(min_length=2, max_length=100)]
 
     class Config:
         from_attributes = True
@@ -44,9 +42,14 @@ class CreateUser(BaseModel):
         }
 
 
+class UpdateUser(User):
+    id: Annotated[int, Field(ge=0)]
+
+
 class CheckUsers(BaseModel):
     id: Annotated[int, Field(ge=0)]
     login: Annotated[str, Field(min_length=2, max_length=30)]
     password: Annotated[str, Field(min_length=2, max_length=200)]
-    email: Annotated[str, Field(min_length=2, max_length=100)]
+    email: Annotated[EmailStr, Field(min_length=2, max_length=100)]
     date_registration: datetime
+    count_games: Annotated[int, Field(ge=0)]
