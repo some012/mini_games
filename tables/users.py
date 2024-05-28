@@ -1,15 +1,13 @@
 from typing import Union, List
 
-from fastapi import APIRouter, status, Response
+from fastapi import APIRouter, status
 from fastapi import Depends, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.models import User
-from schemas.user import User as UserSchema, CreateUser
+from schemas.user import User as UserSchema, CreateUser, CheckUsers
 from utilities import service
 from utilities.default_response import DefaultResponse
 from utilities.hash import get_hashed_password
@@ -22,14 +20,8 @@ router = APIRouter(
     tags=["users"]
 )
 
-responses = {
-    status.HTTP_404_NOT_FOUND: {"model": DefaultResponse, "description": "Item not found"}
-}
 
-security = OAuth2PasswordBearer(tokenUrl="token")
-
-
-@router.get("/users", response_model=Union[List[UserSchema]],
+@router.get("/users", response_model=Union[List[CheckUsers], List[UserSchema]],
             status_code=status.HTTP_200_OK)
 def read_users(db: Session = Depends(get_db)):
     result = db.execute(select(User))
@@ -37,13 +29,15 @@ def read_users(db: Session = Depends(get_db)):
     return all_users
 
 
-@router.get("/users/{id}", response_model=Union[UserSchema], responses=responses)
-def get_user(id: int, response: Response, db: Session = Depends(get_db)):
+@router.get("/users/{id}", response_model=Union[CheckUsers])
+def get_user(id: int, db: Session = Depends(get_db)):
     user = db.execute(select(User).filter(User.id == id))
     this_user = user.scalar_one_or_none()
     if this_user is None:
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return DefaultResponse(success=False, message="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
 
     return this_user
 
@@ -52,9 +46,12 @@ def get_user(id: int, response: Response, db: Session = Depends(get_db)):
 def register_user(user_data: CreateUser, db: Session = Depends(get_db)):
     user_in_db = db.execute(select(User).filter(User.login == user_data.login))
     this_user = user_in_db.scalar_one_or_none()
+
     if this_user:
-        return JSONResponse(content={"message": "User with this login already exists."},
-                            status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this login already exist"
+        )
 
     new_user = User(
         login=user_data.login,

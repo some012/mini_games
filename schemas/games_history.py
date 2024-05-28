@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, List
+from typing import Annotated
 
 from pydantic import Field, BaseModel
 
@@ -24,6 +24,5 @@ class GamesHistory(BaseModel):
         }
 
 
-
-
-
+class GamesHistoryCreate(GamesHistory):
+    pass

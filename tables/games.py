@@ -1,12 +1,14 @@
 from typing import Union, List
 
-from fastapi import APIRouter, status, Response, Depends
-from sqlalchemy import select, func
+from fastapi import APIRouter, status, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.models import Games, GamesHistory, User
-from schemas.games import Games as GameSchema, CreateGames, CheckGames
+from models.models import Games, GamesHistory
+from schemas.games import Games as GameSchema, CreateGames, CheckGames, UpdateGames
+from schemas.games_history import GamesHistoryCreate
+from utilities import crud
 from utilities.default_response import DefaultResponse
 
 router = APIRouter(
@@ -14,81 +16,74 @@ router = APIRouter(
     tags=["games"]
 )
 
-responses = {
-    status.HTTP_404_NOT_FOUND: {"model": DefaultResponse, "description": "Item not found"}
-}
-
 
 @router.get("/games", response_model=Union[List[CheckGames], List[GameSchema]], status_code=status.HTTP_200_OK)
 def read_games(db: Session = Depends(get_db)):
-    result = db.execute(select(Games))
-    all_games = result.unique().scalars().all()
-    return all_games
+    return crud.get_all(db=db, model=Games)
 
 
-@router.get("/games/{id}", response_model=Union[GameSchema],
-            responses=responses)
-def get_games(id: int, response: Response, db: Session = Depends(get_db)):
-    game = db.execute(select(Games).filter(Games.id == id))
-    this_game = game.scalar_one_or_none()
-    if this_game is None:
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return DefaultResponse(success=False, message="Game not found")
-    return this_game
+@router.get("/games/{id}", response_model=Union[GameSchema])
+def get_games(id: int, db: Session = Depends(get_db)):
+    game = crud.get_by_id(db=db, id=id, model=Games)
+    if game is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Game not found"
+        )
+    return game
 
 
 @router.post("/games", response_model=DefaultResponse, status_code=status.HTTP_200_OK)
 def create_game(games_data: CreateGames, db: Session = Depends(get_db)):
-    new_game = Games(
+    game_structure: CreateGames = CreateGames(
         name=games_data.name,
         status=1,
         complete_time=func.now())
 
-    db.add(new_game)
-    db.commit()
+    new_game = crud.create(model=Games, schema=game_structure, db=db)
 
     return new_game
 
 
 @router.post('/users/{user_id}', status_code=status.HTTP_201_CREATED)
-def get_and_complete_game(id: int, user_id: int, response: Response, db: Session = Depends(get_db)):
-    # Поиск пользователя
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return DefaultResponse(success=False, message="User not found")
+def get_and_complete_game(id: int, user_id: int, db: Session = Depends(get_db)):
+    user = crud.get_by_id(model=Games, id=id, db=db)
 
-    # Поиск игры
-    game = db.query(Games).filter(Games.id == id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    game = crud.get_by_id(db=db, id=id, model=Games)
+
     if not game:
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return DefaultResponse(success=False, message="Game not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Game not found"
+        )
 
     if game.status == 2:
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return DefaultResponse(success=False, message="Game already completed")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Game already completed!"
+        )
 
-    # Обновление количества сыгранных игр у пользователя
     user.count_games += 1
-
-    # Добавление завершенной игры к активным играм пользователя
     user.active_game.append(game)
-
-    # Обновление статуса и времени завершения игры
+    game_update: UpdateGames = UpdateGames(
+        status=2, complete_time=func.now(), user_id=user_id)
     game.status = 2
     game.complete_time = func.now()
-
+    crud.update(model=user, schema=game_update, db=db)
     # Создание записи об игре в истории игр
-    new_game_history = GamesHistory(
+    new_game_history = GamesHistoryCreate(
         original_id=game.id,
         name=game.name,
         status=game.status,
         complete_time=game.complete_time,
         user_id=user_id
     )
-    db.add(new_game_history)
-
-    # Сохранение изменений в базе данных
-    db.commit()
+    crud.create(model=GamesHistory, schema=new_game_history, db=db)
 
     return DefaultResponse(success=True, status_code=status.HTTP_201_CREATED, message="Game is completed!")

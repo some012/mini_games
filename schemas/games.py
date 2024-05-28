@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, List
+from typing import Annotated
 
 from pydantic import Field, BaseModel
 
@@ -34,8 +34,13 @@ class CreateGames(BaseModel):
             }
         }
 
+
+class UpdateGames(CreateGames):
+    status: Annotated[int, Field(ge=0)]
+    complete_time: datetime
+    user_id: Annotated[int, Field(ge=0)]
+
+
 class CheckGames(BaseModel):
     id: Annotated[int, Field(ge=0)]
     name: Annotated[str, Field(min_length=2, max_length=30)]
-
-

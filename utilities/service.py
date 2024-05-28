@@ -1,13 +1,10 @@
 from fastapi import Depends
-from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.models import User
 from utilities.hash import get_hashed_password
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def search_login_user(username: str, password: str, db: Session = Depends(get_db)) -> User | None:

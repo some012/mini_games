@@ -7,7 +7,7 @@ from pydantic import Field, BaseModel
 class User(BaseModel):
     id: Annotated[int, Field(ge=0)]
     login: Annotated[str, Field(min_length=2, max_length=30)]
-    password: Annotated[str, Field(min_length=2, max_length=50)]
+    password: Annotated[str, Field(min_length=2, max_length=200)]
     email: Annotated[str, Field(min_length=2, max_length=100)]
     date_registration: datetime
     count_games: Annotated[int, Field(ge=0)]
@@ -30,7 +30,7 @@ class User(BaseModel):
 
 class CreateUser(BaseModel):
     login: Annotated[str, Field(min_length=2, max_length=30)]
-    password: Annotated[str, Field(min_length=2, max_length=50)]
+    password: Annotated[str, Field(min_length=2, max_length=200)]
     email: Annotated[str, Field(min_length=2, max_length=100)]
 
     class Config:
@@ -47,8 +47,6 @@ class CreateUser(BaseModel):
 class CheckUsers(BaseModel):
     id: Annotated[int, Field(ge=0)]
     login: Annotated[str, Field(min_length=2, max_length=30)]
-    password: Annotated[str, Field(min_length=2, max_length=50)]
+    password: Annotated[str, Field(min_length=2, max_length=200)]
     email: Annotated[str, Field(min_length=2, max_length=100)]
     date_registration: datetime
-
-
